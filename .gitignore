@@ -4,3 +4,6 @@ cmake_install.cmake
 CMakecache.txt
 Makefile
 *.exe
+.vs
+.vscode
+out
