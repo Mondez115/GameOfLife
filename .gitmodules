@@ -1,6 +1,3 @@
-[submodule "external"]
-	path = external
-	url = https://github.com/glfw/glfw.git
 [submodule "extern/glfw"]
 	path = extern/glfw
 	url = https://github.com/glfw/glfw.git
