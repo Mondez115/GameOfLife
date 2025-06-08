@@ -7,8 +7,8 @@ set_property(TARGET GameOfLife PROPERTY CXX_STANDARD_REQUIRED ON)
 
 target_link_libraries(GameOfLife 
     ${OPENGL_LIBRARIES} 
-    glfw 
-    glm 
+    ${GLFW_LIBRARIES}
+    ${GLM_LIBRARIES}
     ${CUDA_LIBRARIES}
     ${OpenCL_LIBRARIES}
 )
