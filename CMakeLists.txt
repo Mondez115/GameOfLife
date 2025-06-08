@@ -18,9 +18,14 @@ include_directories(${OpenCL_INCLUDE_DIRS})
 # Add external directory (assuming it's a submodule or external source directory)
 # add_subdirectory(extern)
 
-# Set GLM include directory (assuming you have GLM in extern)
-set(GLM_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/extern/glm/glm")
-include_directories(${GLM_INCLUDE_DIRS})
+# Set GLM include directory
+if(MSVC)
+    set(GLM_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/extern/glm/glm")
+    include_directories(${GLM_INCLUDE_DIRS})
+else()
+    find_package(GLM REQUIRED)
+    include_directories(${GLM_INCLUDE_DIRS})
+endif()
 
 # Option to use GLFW/GLAD
 option(GLFW-CMAKE-STARTER-USE-GLFW-GLAD "Use GLAD from GLFW" ON)
