@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.20)
 
-project(GameOfLife)
+project(GameOfLife CXX)
 
 # Find OpenGL
 find_package(OpenGL REQUIRED)
@@ -11,8 +11,12 @@ set(GLFW_BUILD_DOCS OFF CACHE BOOL "GLFW lib only")
 set(GLFW_INSTALL OFF CACHE BOOL "GLFW lib only")
 set(GLAD_GL "")
 
+# find OpenCL
+find_package(OpenCL REQUIRED)
+include_directories(${OpenCL_INCLUDE_DIRS})
+
 # Add external directory (assuming it's a submodule or external source directory)
-add_subdirectory(extern)
+# add_subdirectory(extern)
 
 # Set GLM include directory (assuming you have GLM in extern)
 set(GLM_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/extern/glm/glm")
