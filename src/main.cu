@@ -313,106 +313,106 @@ __global__ void randomize_grid_cuda_kernel(char* d_cells, int grid_x, int grid_y
     }
 }
 
-char* randomize_kernel_source = "\n\
-__kernel void randomize_grid_opencl_kernel( \n\
-    __global char*        d_cells,   // Grid array to randomize \n\
-    const int             grid_x,    // Number of columns \n\
-    const int             grid_y,    // Number of rows \n\
-    const ulong           seed       // 64-bit seed \n\
-) { \n\
-    // Compute flat global index \n\
-    size_t idx = get_global_id(0); \n\
-    size_t total = (size_t)grid_x * grid_y; \n\
-    if (idx >= total) return; \n\
+const char* randomize_kernel_source = 
+"__kernel void randomize_grid_opencl_kernel( \n"
+"    __global char*        d_cells,\n"   // Grid array to randomize
+"    const int             grid_x,\n"    // Number of columns
+"    const int             grid_y,\n"    // Number of rows
+"    const ulong           seed\n"       // 64-bit seed
+") { \n"
+    // Compute flat global index
+"   size_t idx = get_global_id(0); \n"
+"   size_t total = (size_t)grid_x * grid_y; \n"
+"   if (idx >= total) return; \n"
 
-    // Simple linear congruential generator (LCG) state \n\
-    uint state = (uint)(seed ^ idx); \n\
-    // LCG parameters from Numerical Recipes \n\
-    state = 1664525u * state + 1013904223u; \n\
+    // Simple linear congruential generator (LCG) state
+"   uint state = (uint)(seed ^ idx); \n"
+    // LCG parameters from Numerical Recipes
+"   state = 1664525u * state + 1013904223u; \n"
 
-    // Normalize to [0,1) \n\
-    float rnd = (float)state / (float)0xFFFFFFFFu; \n\
+    // Normalize to [0,1)
+"   float rnd = (float)state / (float)0xFFFFFFFFu; \n"
 
-    // Threshold at 0.1 \n\
-    d_cells[idx] = (rnd < 0.1f) ? 1 : 0; \n\
-}";
-
-
-char* game_of_life_kernel_source = "\n\
-__kernel void game_of_life_kernel_opencl( \n\
-    __global const char* d_cells,      // current state array \n\
-    __global char*       d_next_cells, // next state array \n\
-    const int            grid_x,       // number of columns \n\
-    const int            grid_y        // number of rows \n\
-) { \n\
-    // Compute 1D global index for this work-item \n\
-    int idx = get_global_id(0); \n\
-
-    // Total number of cells \n\
-    int total = grid_x * grid_y; \n\
-
-    // Bounds check: exit if beyond the grid \n\
-    if (idx >= total) return; \n\
-
-    // Compute 2D coordinates from 1D index \n\
-    int x = idx % grid_x; \n\
-    int y = idx / grid_x; \n\
-
-    // Count live neighbors with toroidal wrapping \n\
-    int neighbors = 0; \n\
-    for (int dy = -1; dy <= 1; ++dy) { \n\
-        for (int dx = -1; dx <= 1; ++dx) { \n\
-            if (dx == 0 && dy == 0) continue; \n\
-            int nx = (x + dx + grid_x) % grid_x; \n\
-            int ny = (y + dy + grid_y) % grid_y; \n\
-            neighbors += d_cells[nx + ny * grid_x]; \n\
-        } \n\
-    } \n\
-
-    // Apply Conway's rules \n\
-    if (d_cells[idx]) { \n\
-        d_next_cells[idx] = (neighbors == 2 || neighbors == 3); \n\
-    } else { \n\
-        d_next_cells[idx] = (neighbors == 3); \n\
-    } \n\
-}";
+    // Threshold at 0.1
+"   d_cells[idx] = (rnd < 0.1f) ? 1 : 0; \n"
+"}";
 
 
-char* game_of_life_kernel_2d_source = "\n\
-__kernel void game_of_life_kernel_2d_opencl( \n\
-    __global const char* d_cells,      // current cell states \n\
-    __global       char* d_next_cells, // next generation buffer \n\
-    const int      grid_x,             // number of columns \n\
-    const int      grid_y              // number of rows \n\
-) { \n\
-    // 2D global indices \n\
-    int block_x = get_global_id(0);    // X coordinate of this work-item :contentReference[oaicite:8]{index=8} \n\
-    int block_y = get_global_id(1);    // Y coordinate of this work-item :contentReference[oaicite:9]{index=9} \n\
+const char* game_of_life_kernel_source = 
+"__kernel void game_of_life_kernel_opencl( \n"
+"    __global const char* d_cells,\n"      // current state array
+"    __global char*       d_next_cells,\n" // next state array
+"    const int            grid_x,\n"       // number of columns
+"    const int            grid_y\n"        // number of rows
+") { \n"
+    // Compute 1D global index for this work-item \n
+"    int idx = get_global_id(0); \n"
 
-    // Bounds check: exit if outside the grid \n\
-    if (block_x >= grid_x || block_y >= grid_y) { \n\
-        return; \n\
-    } \n\
+    // Total number of cells \n
+"    int total = grid_x * grid_y; \n"
 
-    // Count live neighbors with toroidal wrap \n\
-    int neighbors = 0; \n\
-    for (int dy = -1; dy <= 1; ++dy) { \n\
-        for (int dx = -1; dx <= 1; ++dx) { \n\
-            if (dx == 0 && dy == 0) continue; \n\
-            int nx = (block_x + dx + grid_x) % grid_x; \n\
-            int ny = (block_y + dy + grid_y) % grid_y; \n\
-            neighbors += d_cells[nx + ny * grid_x]; \n\
-        } \n\
-    } \n\
+    // Bounds check: exit if beyond the grid \n
+"    if (idx >= total) return; \n"
 
-    // Compute flat index and apply Conway's rules \n\
-    int idx = block_x + block_y * grid_x; \n\
-    if (d_cells[idx]) { \n\
-        d_next_cells[idx] = (neighbors == 2 || neighbors == 3); \n\
-    } else { \n\
-        d_next_cells[idx] = (neighbors == 3); \n\
-    } \n\
-}";
+    // Compute 2D coordinates from 1D index \n
+"    int x = idx % grid_x; \n"
+"    int y = idx / grid_x; \n"
+
+    // Count live neighbors with toroidal wrapping \n
+"    int neighbors = 0; \n"
+"    for (int dy = -1; dy <= 1; ++dy) { \n"
+"        for (int dx = -1; dx <= 1; ++dx) { \n"
+"            if (dx == 0 && dy == 0) continue; \n"
+"            int nx = (x + dx + grid_x) % grid_x; \n"
+"            int ny = (y + dy + grid_y) % grid_y; \n"
+"            neighbors += d_cells[nx + ny * grid_x]; \n"
+"        } \n"
+"    } \n"
+
+    // Apply Conway's rules \n
+"    if (d_cells[idx]) { \n"
+"        d_next_cells[idx] = (neighbors == 2 || neighbors == 3); \n"
+"    } else { \n"
+"        d_next_cells[idx] = (neighbors == 3); \n"
+"    } \n"
+"}";
+
+
+const char* game_of_life_kernel_2d_source = 
+"__kernel void game_of_life_kernel_2d_opencl( \n"
+"    __global const char* d_cells,      // current cell states \n"
+"    __global       char* d_next_cells, // next generation buffer \n"
+"    const int      grid_x,             // number of columns \n"
+"    const int      grid_y              // number of rows \n"
+") { \n"
+    // 2D global indices \n
+"    int block_x = get_global_id(0);    // X coordinate of this work-item \n"
+"    int block_y = get_global_id(1);    // Y coordinate of this work-item \n"
+
+    // Bounds check: exit if outside the grid \n
+"    if (block_x >= grid_x || block_y >= grid_y) { \n"
+"        return; \n"
+"    } \n"
+
+    // Count live neighbors with toroidal wrap \n
+"    int neighbors = 0; \n"
+"    for (int dy = -1; dy <= 1; ++dy) { \n"
+"        for (int dx = -1; dx <= 1; ++dx) { \n"
+"            if (dx == 0 && dy == 0) continue; \n"
+"            int nx = (block_x + dx + grid_x) % grid_x; \n"
+"            int ny = (block_y + dy + grid_y) % grid_y; \n"
+"            neighbors += d_cells[nx + ny * grid_x]; \n"
+"        } \n"
+"    } \n"
+
+    // Compute flat index and apply Conway's rules \n
+"    int idx = block_x + block_y * grid_x; \n"
+"    if (d_cells[idx]) { \n"
+"        d_next_cells[idx] = (neighbors == 2 || neighbors == 3); \n"
+"    } else { \n"
+"        d_next_cells[idx] = (neighbors == 3); \n"
+"    } \n"
+"}";
 
 
 int main(int argc, char** argv) {
