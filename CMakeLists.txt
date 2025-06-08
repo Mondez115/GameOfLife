@@ -28,7 +28,7 @@ else()
 endif()
 
 # Option to use GLFW/GLAD
-find_package(glfw REQUIRED)
+find_package(glfw3 REQUIRED)
 include_directories(${GLFW_INCLUDE_DIRS})
 # option(GLFW-CMAKE-STARTER-USE-GLFW-GLAD "Use GLAD from GLFW" ON)
 # if(GLFW-CMAKE-STARTER-USE-GLFW-GLAD)
