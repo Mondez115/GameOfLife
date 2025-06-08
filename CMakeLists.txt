@@ -29,6 +29,7 @@ if(GLFW-CMAKE-STARTER-USE-GLFW-GLAD)
     set(GLAD_GL "${GLFW_SOURCE_DIR}/deps/glad/gl.h")
 endif()
 
+set(CMAKE_CUDA_ARCHITECTURES 86)
 enable_language(CUDA)
 
 include_directories(${CUDA_INCLUDE_DIRS})
