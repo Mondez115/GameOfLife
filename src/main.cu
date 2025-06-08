@@ -462,7 +462,7 @@ int main(int argc, char** argv) {
     const size_t global_work_size_2d[2] = {
         (GRID_X + block_size_2d.x - 1) / block_size_2d.x,
         (GRID_Y + block_size_2d.y - 1) / block_size_2d.y
-    }
+    };
 
     const size_t local_work_size[1] = {
         block_size
@@ -521,7 +521,7 @@ int main(int argc, char** argv) {
             clSetKernelArg(randomize_kernel, 2, sizeof(int), &GRID_Y);
             clSetKernelArg(randomize_kernel, 3, sizeof(ulong), &seed);
 
-            clEnqueueNDRangeKernel(queue, randomize_kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
+            clEnqueueNDRangeKernel(queue, randomize_kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, NULL);
 
             clFinish(queue);
 
@@ -614,9 +614,9 @@ int main(int argc, char** argv) {
                 start = std::chrono::high_resolution_clock::now();
 
                 if(double_dim){
-                    clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL, &global_work_size_2d, &local_work_size_2d, 0, NULL, NULL);
+                    clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL, global_work_size_2d, local_work_size_2d, 0, NULL, NULL);
                 } else {
-                    clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
+                    clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, NULL);
                 }
 
                 clFinish(queue);
@@ -697,9 +697,9 @@ int main(int argc, char** argv) {
             } else if(method == OPENCL){
 
                 if(double_dim){
-                    clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL, &global_work_size_2d, &local_work_size_2d, 0, NULL, NULL);
+                    clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL, global_work_size_2d, local_work_size_2d, 0, NULL, NULL);
                 } else {
-                    clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
+                    clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, NULL);
                 }
 
                 clFinish(queue);
