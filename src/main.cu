@@ -186,15 +186,15 @@ void initialize_camera(int rows, int cols, int window_width, int window_height) 
 
 int setup_cuda_memory(int grid_x, int grid_y){
 
-    err = cudaMalloc((void**)&d_cells, GRID_X * GRID_Y * sizeof(char));
-    if (err != cudaSuccess) {
-        std::cerr << "CUDA malloc failed for d_cells: " << cudaGetErrorString(err) << std::endl;
+    err_cuda = cudaMalloc((void**)&d_cells, GRID_X * GRID_Y * sizeof(char));
+    if (err_cuda != cudaSuccess) {
+        std::cerr << "CUDA malloc failed for d_cells: " << cudaGetErrorString(err_cuda) << std::endl;
         return -9;
     }
 
-    err = cudaMalloc((void**)&d_next_cells, GRID_X * GRID_Y * sizeof(char));
-    if (err != cudaSuccess) {
-        std::cerr << "CUDA malloc failed for d_next_cells: " << cudaGetErrorString(err) << std::endl;
+    err_cuda = cudaMalloc((void**)&d_next_cells, GRID_X * GRID_Y * sizeof(char));
+    if (err_cuda != cudaSuccess) {
+        std::cerr << "CUDA malloc failed for d_next_cells: " << cudaGetErrorString(err_cuda) << std::endl;
         return -10;
     }
 
@@ -484,8 +484,8 @@ int main(int argc, char** argv) {
 
             // 3. Create command queue and memory buffers
             queue = clCreateCommandQueue(context, device, 0, &err_cl);
-            opencl_d_cells = clCreateBuffer(context, CL_MEM_READ_WRITE, GRID_X * GRID_Y * sizeof(char), cells, &err_cl);
-            opencl_d_next_cells = clCreateBuffer(context, CL_MEM_READ_WRITE, GRID_X * GRID_Y * sizeof(char), next_cells, &err_cl);
+            opencl_d_cells = clCreateBuffer(context, CL_MEM_READ_WRITE, GRID_X * GRID_Y * sizeof(char), cells.data(), &err_cl);
+            opencl_d_next_cells = clCreateBuffer(context, CL_MEM_READ_WRITE, GRID_X * GRID_Y * sizeof(char), next_cells.data(), &err_cl);
 
             // 4. Build grid randomize program and kernel, then execute it
             randomize_program = clCreateProgramWithSource(context, 1,
