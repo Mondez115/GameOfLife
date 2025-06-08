@@ -1,4 +1,3 @@
-
 #include <GLFW/glfw3.h>
 #include <GL/gl.h>
 #include <CL/cl.h>
@@ -48,7 +47,7 @@ std::vector<std::vector<char>> cells_double, next_cells_double;
 
 char* d_cells, *d_next_cells, *d_cells_double, *d_next_cells_double;
 
-cudaError_t err;
+cudaError_t err_cuda;
 
 cl_int err_cl;
 cl_platform_id platform;
@@ -467,7 +466,7 @@ int main(int argc, char** argv) {
 
             cl_uint numPlatforms = 0;
             clGetPlatformIDs(0, NULL, &numPlatforms);
-            cl_platform_id *platforms = malloc(sizeof(cl_platform_id) * numPlatforms);
+            cl_platform_id *platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id) * numPlatforms);
             clGetPlatformIDs(numPlatforms, platforms, NULL);
 
             platform = platforms[0];  // choose the first platform
@@ -475,7 +474,7 @@ int main(int argc, char** argv) {
 
             cl_uint numDevices = 0;
             clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 0, NULL, &numDevices);
-            cl_device_id *devices = malloc(sizeof(cl_device_id) * numDevices);
+            cl_device_id *devices = (cl_device_id*)malloc(sizeof(cl_device_id) * numDevices);
             clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, numDevices, devices, NULL);
 
             device = devices[0];  // choose the first device
