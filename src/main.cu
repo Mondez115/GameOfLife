@@ -47,6 +47,10 @@ std::vector<std::vector<char>> cells_double, next_cells_double;
 
 char* d_cells, *d_next_cells, *d_cells_double, *d_next_cells_double;
 
+cl_uint work_dim;
+size_t* global_work_size;
+size_t* local_work_size;
+
 cudaError_t err_cuda;
 
 cl_int err_cl;
@@ -449,6 +453,26 @@ int main(int argc, char** argv) {
     dim3 grid_size_2d((GRID_X + block_size_2d.x - 1) / block_size_2d.x,
                   (GRID_Y + block_size_2d.y - 1) / block_size_2d.y);
 
+
+    size_t local_work_size_2d[2] = {
+        2,
+        block_size
+    };
+
+    size_t global_work_size_2d[2] = {
+        (GRID_X + block_size_2d.x - 1) / block_size_2d.x,
+        (GRID_Y + block_size_2d.y - 1) / block_size_2d.y
+    };
+
+    size_t local_work_size[1] = {
+        block_size
+    };
+
+    size_t global_work_size[1] = {
+        (GRID_X + block_size - 1) / block_size
+    };
+    
+    
     if(method == CUDA){
         num_elements = GRID_X * GRID_Y;
         grid_size = (num_elements + block_size - 1) / block_size;
@@ -498,7 +522,7 @@ int main(int argc, char** argv) {
             clSetKernelArg(randomize_kernel, 2, sizeof(int), &GRID_Y);
             clSetKernelArg(randomize_kernel, 3, sizeof(ulong), &seed);
 
-            clEnqueueNDRangeKernel(queue, randomize_kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+            clEnqueueNDRangeKernel(queue, randomize_kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
 
             clFinish(queue);
 
@@ -571,9 +595,9 @@ int main(int argc, char** argv) {
 
                 cudaDeviceSynchronize();
         
-                err = cudaGetLastError();
-                if (err != cudaSuccess) {
-                    std::cerr << "CUDA kernel launch failed: " << cudaGetErrorString(err) << std::endl;
+                err_cuda = cudaGetLastError();
+                if (err_cuda != cudaSuccess) {
+                    std::cerr << "CUDA kernel launch failed: " << cudaGetErrorString(err_cuda) << std::endl;
                     break;
                 }
 
@@ -591,9 +615,9 @@ int main(int argc, char** argv) {
                 start = std::chrono::high_resolution_clock::now();
 
                 if(double_dim){
-                    clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL, &global_size_2d, &local_size_2d, 0, NULL, NULL);
+                    clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL, &global_work_size_2d, &local_work_size_2d, 0, NULL, NULL);
                 } else {
-                    clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+                    clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
                 }
 
                 clFinish(queue);
@@ -657,9 +681,9 @@ int main(int argc, char** argv) {
                     game_of_life_kernel<<<grid_size, block_size>>>(d_cells, d_next_cells, GRID_X, GRID_Y);
                 }
 
-                err = cudaGetLastError();
-                if (err != cudaSuccess) {
-                    std::cerr << "CUDA kernel launch failed: " << cudaGetErrorString(err) << std::endl;
+                err_cuda = cudaGetLastError();
+                if (err_cuda != cudaSuccess) {
+                    std::cerr << "CUDA kernel launch failed: " << cudaGetErrorString(err_cuda) << std::endl;
                     return;
                 }
 
@@ -674,9 +698,9 @@ int main(int argc, char** argv) {
             } else if(method == OPENCL){
 
                 if(double_dim){
-                    clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL, &global_size_2d, &local_size_2d, 0, NULL, NULL);
+                    clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL, &global_work_size_2d, &local_work_size_2d, 0, NULL, NULL);
                 } else {
-                    clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+                    clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
                 }
 
                 clFinish(queue);
