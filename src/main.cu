@@ -25,7 +25,7 @@ int GRID_X, GRID_Y;
 bool double_dim;
 
 int block_size;
-
+unsigned long long seed = std::chrono::system_clock::now().time_since_epoch().count();
 std::string method;
 
 std::string CUDA = "CUDA";
@@ -461,7 +461,7 @@ int main(int argc, char** argv) {
         cudaMemcpy(d_cells, cells.data(), GRID_X * GRID_Y * sizeof(char), cudaMemcpyHostToDevice);
         cudaMemcpy(d_next_cells, next_cells.data(), GRID_X * GRID_Y * sizeof(char), cudaMemcpyHostToDevice);
 
-        randomize_grid_cuda_kernel<<<grid_size, block_size>>>(d_cells,GRID_X, GRID_Y, 1);
+        randomize_grid_cuda_kernel<<<grid_size, block_size>>>(d_cells,GRID_X, GRID_Y, seed);
     } else if(method == OPENCL){
 
             cl_uint numPlatforms = 0;
