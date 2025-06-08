@@ -584,8 +584,6 @@ int main(int argc, char** argv) {
 
             } else if (method == CUDA){
 
-                start = std::chrono::high_resolution_clock::now();
-
                 if(double_dim){
                     game_of_life_kernel_2d<<<grid_size_2d, block_size_2d>>>(d_cells, d_next_cells, GRID_X, GRID_Y);
                 } else {
@@ -602,16 +600,12 @@ int main(int argc, char** argv) {
 
                 cudaMemcpy(cells.data(), d_next_cells, GRID_X * GRID_Y * sizeof(char), cudaMemcpyDeviceToHost);
                 cudaMemcpy(next_cells.data(), d_cells, GRID_X * GRID_Y * sizeof(char), cudaMemcpyDeviceToHost);
-
-                stop = std::chrono::high_resolution_clock::now();
-                auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
         
                 char* temp = d_cells;
                 d_cells = d_next_cells;
                 d_next_cells = temp;
    
             } else if(method == OPENCL){
-                start = std::chrono::high_resolution_clock::now();
 
                 if(double_dim){
                     clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL, global_work_size_2d, local_work_size_2d, 0, NULL, NULL);
@@ -620,9 +614,6 @@ int main(int argc, char** argv) {
                 }
 
                 clFinish(queue);
-
-                stop = std::chrono::high_resolution_clock::now();
-                duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
                 
                 char* temp = d_cells;
                 d_cells = d_next_cells;
@@ -733,8 +724,8 @@ int main(int argc, char** argv) {
 
         std::cout << "Freed CUDA resources" << std::endl;
     } else if(method == OPENCL){
-        clReleaseMemObject(d_cells);
-        clReleaseMemObject(d_next_cells);
+        clReleaseMemObject(opencl_d_cells);
+        clReleaseMemObject(opencl_d_next_cells);
 
         clReleaseKernel(randomize_kernel);
         clReleaseProgram(randomize_program);
