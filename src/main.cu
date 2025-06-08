@@ -461,8 +461,17 @@ int main(int argc, char** argv) {
 
     size_t global_work_size_2d[2] = {
         (GRID_X + block_size_2d.x - 1) / block_size_2d.x,
-        (GRID_Y + block_size_2d.y - 1) / block_size_2d.y)
+        (GRID_Y + block_size_2d.y - 1) / block_size_2d.y
     }
+
+    size_t local_work_size[1] = {
+        block_size
+    };
+
+    size_t global_work_size[1] = {
+        (GRID_X + block_size - 1) / block_size
+    };
+    
     if(method == CUDA){
         num_elements = GRID_X * GRID_Y;
         grid_size = (num_elements + block_size - 1) / block_size;
