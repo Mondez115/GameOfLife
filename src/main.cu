@@ -48,8 +48,6 @@ std::vector<std::vector<char>> cells_double, next_cells_double;
 char* d_cells, *d_next_cells, *d_cells_double, *d_next_cells_double;
 
 cl_uint work_dim;
-size_t* global_work_size;
-size_t* local_work_size;
 
 cudaError_t err_cuda;
 
@@ -454,21 +452,21 @@ int main(int argc, char** argv) {
                   (GRID_Y + block_size_2d.y - 1) / block_size_2d.y);
 
 
-    size_t local_work_size_2d[2] = {
+    const size_t* local_work_size_2d[2] = {
         2,
         block_size
     };
 
-    size_t global_work_size_2d[2] = {
+    const size_t* global_work_size_2d[2] = {
         (GRID_X + block_size_2d.x - 1) / block_size_2d.x,
         (GRID_Y + block_size_2d.y - 1) / block_size_2d.y
     };
 
-    size_t local_work_size[1] = {
+    const size_t* local_work_size[1] = {
         block_size
     };
 
-    size_t global_work_size[1] = {
+    const size_t* global_work_size[1] = {
         (GRID_X + block_size - 1) / block_size
     };
     
