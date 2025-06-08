@@ -57,7 +57,7 @@ cl_context context;
 cl_command_queue queue;
 cl_program program;
 
-cl_mem d_cells, d_next_cells;
+cl_mem opencl_d_cells, opencl_d_next_cells;
 cl_kernel randomize_kernel, grid_1d_kernel, grid_2d_kernel;
 cl_program randomize_program, grid_1d_program, grid_2d_program;
 
@@ -485,8 +485,8 @@ int main(int argc, char** argv) {
 
             // 3. Create command queue and memory buffers
             queue = clCreateCommandQueue(context, device, 0, &err);
-            d_cells = clCreateBuffer(context, CL_MEM_READ_WRITE, GRID_X * GRID_Y * sizeof(char), cells, &err);
-            d_next_cells = clCreateBuffer(context, CL_MEM_READ_WRITE, GRID_X * GRID_Y * sizeof(char), next_cells, &err);
+            opencl_d_cells = clCreateBuffer(context, CL_MEM_READ_WRITE, GRID_X * GRID_Y * sizeof(char), cells, &err);
+            opencl_d_next_cells = clCreateBuffer(context, CL_MEM_READ_WRITE, GRID_X * GRID_Y * sizeof(char), next_cells, &err);
 
             // 4. Build grid randomize program and kernel, then execute it
             randomize_program = clCreateProgramWithSource(context, 1,
@@ -494,7 +494,7 @@ int main(int argc, char** argv) {
             err = clBuildProgram(randomize_program, 1, &device, NULL, NULL, NULL);
             randomize_kernel = clCreateKernel(randomize_program, "randomize_grid_opencl_kernel", &err);
 
-            clSetKernelArg(randomize_kernel, 0, sizeof(cl_mem), &d_cells);
+            clSetKernelArg(randomize_kernel, 0, sizeof(cl_mem), &opencl_d_cells);
             clSetKernelArg(randomize_kernel, 1, sizeof(int), &GRID_X);
             clSetKernelArg(randomize_kernel, 2, sizeof(int), &GRID_Y);
             clSetKernelArg(randomize_kernel, 3, sizeof(ulong), &seed);
@@ -512,8 +512,8 @@ int main(int argc, char** argv) {
             err = clBuildProgram(grid_1d_program, 1, &device, NULL, NULL, NULL);
             grid_1d_kernel = clCreateKernel(grid_1d_program, "game_of_life_kernel_opencl", &err);
 
-            clSetKernelArg(grid_1d_kernel, 0, sizeof(cl_mem), &d_cells);    
-            clSetKernelArg(grid_1d_kernel, 1, sizeof(cl_mem), &d_next_cells);
+            clSetKernelArg(grid_1d_kernel, 0, sizeof(cl_mem), &opencl_d_cells);    
+            clSetKernelArg(grid_1d_kernel, 1, sizeof(cl_mem), &opencl_d_next_cells);
             clSetKernelArg(grid_1d_kernel, 2, sizeof(int), &GRID_X);
             clSetKernelArg(grid_1d_kernel, 3, sizeof(int), &GRID_Y);
             // 6. Build grid_2d program and kernel
@@ -522,8 +522,8 @@ int main(int argc, char** argv) {
             err = clBuildProgram(grid_2d_program, 1, &device, NULL, NULL, NULL);
             grid_2d_kernel = clCreateKernel(grid_2d_program, "game_of_life_kernel_2d_opencl", &err);
 
-            clSetKernelArg(grid_2d_kernel, 0, sizeof(cl_mem), &d_cells);
-            clSetKernelArg(grid_2d_kernel, 1, sizeof(cl_mem), &d_next_cells);
+            clSetKernelArg(grid_2d_kernel, 0, sizeof(cl_mem), &opencl_d_cells);
+            clSetKernelArg(grid_2d_kernel, 1, sizeof(cl_mem), &opencl_d_next_cells);
             clSetKernelArg(grid_2d_kernel, 2, sizeof(int), &GRID_X);
             clSetKernelArg(grid_2d_kernel, 3, sizeof(int), &GRID_Y);            
     }
