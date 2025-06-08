@@ -313,7 +313,7 @@ __global__ void randomize_grid_cuda_kernel(char* d_cells, int grid_x, int grid_y
     }
 }
 
-char* randomize_kernel_source = "
+char* randomize_kernel_source = "\  
 __kernel void randomize_grid_opencl_kernel( \
     __global char*        d_cells,   // Grid array to randomize \
     const int             grid_x,    // Number of columns \
@@ -338,7 +338,7 @@ __kernel void randomize_grid_opencl_kernel( \
 }";
 
 
-char* game_of_life_kernel_source = "
+char* game_of_life_kernel_source = "\
 __kernel void game_of_life_kernel_opencl( \
     __global const char* d_cells,      // current state array \
     __global char*       d_next_cells, // next state array \
@@ -378,7 +378,7 @@ __kernel void game_of_life_kernel_opencl( \
 }";
 
 
-char* game_of_life_kernel_2d_source = "
+char* game_of_life_kernel_2d_source = "\
 __kernel void game_of_life_kernel_2d_opencl( \
     __global const char* d_cells,      // current cell states \
     __global       char* d_next_cells, // next generation buffer \
