@@ -23,7 +23,7 @@ if(MSVC)
     set(GLM_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/extern/glm/glm")
     include_directories(${GLM_INCLUDE_DIRS})
 else()
-    find_package(GLM REQUIRED)
+    find_package(glm REQUIRED)
     include_directories(${GLM_INCLUDE_DIRS})
 endif()
 
