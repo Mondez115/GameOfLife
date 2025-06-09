@@ -55,6 +55,8 @@ char *d_cells, *d_next_cells, *d_cells_double, *d_next_cells_double;
 cl_uint work_dim;
 size_t global_work_size;
 size_t local_work_size;
+size_t global_work_size_2d[2];
+size_t local_work_size_2d[2];
 
 cudaError_t err_cuda;
 
@@ -92,14 +94,18 @@ void print_config() {
   } else if (method == OPENCL) {
     cout << "Double dimension: " << (double_dim ? "true" : "false") << endl;
     size_t device_name_size;
-    clGetDeviceInfo(device, CL_DEVICE_NAME, 0, NULL,
-        &device_name_size);
+    clGetDeviceInfo(device, CL_DEVICE_NAME, 0, NULL, &device_name_size);
     char *device_name = (char *)malloc(device_name_size);
     clGetDeviceInfo(device, CL_DEVICE_NAME, device_name_size, device_name,
-        NULL);
+                    NULL);
     cout << "Device: " << device_name << endl;
-    cout << "Global work size: " << global_work_size << endl;
-    cout << "Local work size: " << local_work_size << endl;
+    if (double_dim) {
+      cout << "Global work size: (" << global_work_size_2d[0] << ", " << global_work_size_2d[1] << ")" << endl;
+      cout << "Local work size: (" << local_work_size_2d[0] << ", " << local_work_size_2d[1] << ")" << endl;
+    } else {
+      cout << "Global work size: " << global_work_size << endl;
+      cout << "Local work size: " << local_work_size << endl;
+    }
   }
 }
 
@@ -292,10 +298,10 @@ __global__ void game_of_life_kernel(char *d_cells, char *d_next_cells,
 __global__ void game_of_life_kernel_2d(char *d_cells, char *d_next_cells,
                                        int grid_x, int grid_y) {
 
-  int block_x = blockIdx.x * blockDim.x + threadIdx.x;
-  int block_y = blockIdx.y * blockDim.y + threadIdx.y;
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (block_x < grid_x && block_y < grid_y) {
+  if (x < grid_x && y < grid_y) {
 
     int neighbors = 0;
 
@@ -305,14 +311,14 @@ __global__ void game_of_life_kernel_2d(char *d_cells, char *d_next_cells,
         if (dx == 0 && dy == 0)
           continue;
 
-        int nx = (block_x + dx + grid_x) % grid_x;
-        int ny = (block_y + dy + grid_y) % grid_y;
+        int nx = (x + dx + grid_x) % grid_x;
+        int ny = (y + dy + grid_y) % grid_y;
 
         neighbors += d_cells[nx + ny * grid_x];
       }
     }
 
-    int idx = block_x + block_y * grid_x;
+    int idx = x + y * grid_x;
     if (d_cells[idx]) {
       d_next_cells[idx] = (neighbors == 2 || neighbors == 3);
     } else {
@@ -382,42 +388,76 @@ const char *game_of_life_kernel_source =
     "}";
 
 const char *game_of_life_kernel_2d_source =
-    "__kernel void game_of_life_kernel_2d_opencl( \n"
-    "    __global const char* d_cells,      // current cell states \n"
-    "    __global       char* d_next_cells, // next generation buffer \n"
-    "    const int      grid_x,             // number of columns \n"
-    "    const int      grid_y              // number of rows \n"
-    ") { \n"
-    // 2D global indices \n
-    "    int block_x = get_global_id(0);    // X coordinate of this work-item "
+    "__kernel void game_of_life_kernel_2d_opencl(\n"
+    "    __global const char* d_cells,\n"
+    "    __global       char* d_next_cells,\n"
+    "    const int      grid_x,\n"
+    "    const int      grid_y\n"
+    ") {\n"
+    "    int x = get_global_id(0);\n"
+    "    int y = get_global_id(1);\n"
     "\n"
-    "    int block_y = get_global_id(1);    // Y coordinate of this work-item "
+    "    if (x < grid_x && y < grid_y) {\n"
+    "        int neighbors = 0;\n"
     "\n"
+    "        for (int dy = -1; dy <= 1; ++dy) {\n"
+    "            for (int dx = -1; dx <= 1; ++dx) {\n"
+    "                if (dx == 0 && dy == 0) continue;\n"
+    "\n"
+    "                int nx = (x + dx + grid_x) % grid_x;\n"
+    "                int ny = (y + dy + grid_y) % grid_y;\n"
+    "\n"
+    "                neighbors += d_cells[nx + ny * grid_x];\n"
+    "            }\n"
+    "        }\n"
+    "\n"
+    "        int idx = x + y * grid_x;\n"
+    "        char current = d_cells[idx];\n"
+    "        if (current) {\n"
+    "            d_next_cells[idx] = (neighbors == 2 || neighbors == 3) ? 1 : "
+    "0;\n"
+    "        } else {\n"
+    "            d_next_cells[idx] = (neighbors == 3) ? 1 : 0;\n"
+    "        }\n"
+    "    }\n"
+    "}\n";
 
-    // Bounds check: exit if outside the grid \n
-    "    if (block_x >= grid_x || block_y >= grid_y) { \n"
-    "        return; \n"
-    "    } \n"
+int getCudaDeviceCount(int &deviceCount) {
+  cudaError_t err = cudaGetDeviceCount(&deviceCount);
+  if (err != cudaSuccess) {
+    std::cerr << "Error: Failed to get CUDA device count: "
+              << cudaGetErrorString(err) << std::endl;
+    return 1;
+  }
 
-    // Count live neighbors with toroidal wrap \n
-    "    int neighbors = 0; \n"
-    "    for (int dy = -1; dy <= 1; ++dy) { \n"
-    "        for (int dx = -1; dx <= 1; ++dx) { \n"
-    "            if (dx == 0 && dy == 0) continue; \n"
-    "            int nx = (block_x + dx + grid_x) % grid_x; \n"
-    "            int ny = (block_y + dy + grid_y) % grid_y; \n"
-    "            neighbors += d_cells[nx + ny * grid_x]; \n"
-    "        } \n"
-    "    } \n"
+  if (deviceCount == 0) {
+    std::cerr << "Error: No CUDA-compatible devices found." << std::endl;
+    return 1;
+  }
 
-    // Compute flat index and apply Conway's rules \n
-    "    int idx = block_x + block_y * grid_x; \n"
-    "    if (d_cells[idx]) { \n"
-    "        d_next_cells[idx] = (neighbors == 2 || neighbors == 3); \n"
-    "    } else { \n"
-    "        d_next_cells[idx] = (neighbors == 3); \n"
-    "    } \n"
-    "}";
+  return 0;
+}
+
+int selectCudaDevice(int device) {
+  cudaError_t err = cudaSetDevice(device);
+  if (err != cudaSuccess) {
+    std::cerr << "Error: Failed to set CUDA device " << device << ": "
+              << cudaGetErrorString(err) << std::endl;
+    return 1;
+  }
+
+  cudaDeviceProp deviceProp;
+  err = cudaGetDeviceProperties(&deviceProp, device);
+  if (err != cudaSuccess) {
+    std::cerr << "Error: Failed to get properties for device " << device << ": "
+              << cudaGetErrorString(err) << std::endl;
+    return 1;
+  }
+
+  std::cout << "Using device " << device << ": " << deviceProp.name
+            << std::endl;
+  return 0;
+}
 
 int main(int argc, char **argv) {
 
@@ -452,18 +492,38 @@ int main(int argc, char **argv) {
   dim3 grid_size_2d((GRID_X + block_size_2d.x - 1) / block_size_2d.x,
                     (GRID_Y + block_size_2d.y - 1) / block_size_2d.y);
 
-  const size_t local_work_size_2d[2] = {block_size, block_size};
+const size_t local_work_size_2d_temp[2] = {
+    (size_t)block_size,   // x dimension of a work-group
+    (size_t)block_size    // y dimension of a work-group
+};
 
-  const size_t global_work_size_2d[2] = {
-      ((GRID_X + block_size - 1) / block_size) * block_size,
-      ((GRID_Y + block_size - 1) / block_size) * block_size};
+size_t num_groups_x = (GRID_X + block_size - 1) / block_size;
+size_t num_groups_y = (GRID_Y + block_size - 1) / block_size;
+
+const size_t global_work_size_2d_temp[2] = {
+    num_groups_x * local_work_size_2d_temp[0],  // covers all GRID_X columns
+    num_groups_y * local_work_size_2d_temp[1]   // covers all GRID_Y rows
+};
+
 
   const size_t local_work_size[1] = {block_size};
 
   const size_t total_cells = GRID_X * GRID_Y;
-  const size_t global_work_size[1] = {((total_cells + block_size - 1) / block_size) * block_size};
+  const size_t global_work_size[1] = {
+      ((total_cells + block_size - 1) / block_size) * block_size};
 
   if (method == CUDA) {
+
+    int device_count = 0;
+
+    if (getCudaDeviceCount(device_count)) {
+      return;
+    }
+
+    if (selectCudaDevice(0)) {
+      return;
+    }
+
     num_elements = GRID_X * GRID_Y;
     grid_size = (num_elements + block_size - 1) / block_size;
 
@@ -484,7 +544,7 @@ int main(int argc, char **argv) {
         (cl_platform_id *)malloc(sizeof(cl_platform_id) * numPlatforms);
     clGetPlatformIDs(numPlatforms, platforms, NULL);
 
-    platform = platforms[0]; // choose the first platform
+    platform = platforms[1]; // choose the first platform
     free(platforms);
 
     cl_uint numDevices = 0;
@@ -500,29 +560,33 @@ int main(int argc, char **argv) {
 
     // 3. Create command queue and memory buffers
     queue = clCreateCommandQueue(context, device, 0, &err_cl);
-    
+
     // Create buffers without initial data - fix the initialization
-    opencl_d_cells = clCreateBuffer(context, CL_MEM_READ_WRITE,
+    opencl_d_cells =
+        clCreateBuffer(context, CL_MEM_READ_WRITE,
                        GRID_X * GRID_Y * sizeof(char), NULL, &err_cl);
     if (err_cl != CL_SUCCESS) {
-      std::cerr << "OpenCL: Failed to create d_cells buffer, error: " << err_cl << std::endl;
+      std::cerr << "OpenCL: Failed to create d_cells buffer, error: " << err_cl
+                << std::endl;
       return -12;
     }
-    
-    opencl_d_next_cells = clCreateBuffer(context, CL_MEM_READ_WRITE,
-                                         GRID_X * GRID_Y * sizeof(char),
-                                         NULL, &err_cl);
+
+    opencl_d_next_cells =
+        clCreateBuffer(context, CL_MEM_READ_WRITE,
+                       GRID_X * GRID_Y * sizeof(char), NULL, &err_cl);
     if (err_cl != CL_SUCCESS) {
-      std::cerr << "OpenCL: Failed to create d_next_cells buffer, error: " << err_cl << std::endl;
+      std::cerr << "OpenCL: Failed to create d_next_cells buffer, error: "
+                << err_cl << std::endl;
       return -13;
     }
-    
+
     // Explicitly write initial random data to the device buffer
     err_cl = clEnqueueWriteBuffer(queue, opencl_d_cells, CL_TRUE, 0,
-                         GRID_X * GRID_Y * sizeof(char), cells.data(),
-                         0, NULL, NULL);
+                                  GRID_X * GRID_Y * sizeof(char), cells.data(),
+                                  0, NULL, NULL);
     if (err_cl != CL_SUCCESS) {
-      std::cerr << "OpenCL: Failed to write initial data to buffer, error: " << err_cl << std::endl;
+      std::cerr << "OpenCL: Failed to write initial data to buffer, error: "
+                << err_cl << std::endl;
       return -14;
     }
 
@@ -540,10 +604,14 @@ int main(int argc, char **argv) {
     grid_2d_kernel = clCreateKernel(grid_2d_program,
                                     "game_of_life_kernel_2d_opencl", &err_cl);
 
-    // Set global variables for print_config display
-    // Use 1D values as default for display
+
     ::global_work_size = global_work_size[0];
     ::local_work_size = local_work_size[0];
+    // Copy the local 2D arrays to global arrays
+    ::global_work_size_2d[0] = global_work_size_2d_temp[0];
+    ::global_work_size_2d[1] = global_work_size_2d_temp[1];
+    ::local_work_size_2d[0] = local_work_size_2d_temp[0];
+    ::local_work_size_2d[1] = local_work_size_2d_temp[1];
   }
 
   print_config();
@@ -627,16 +695,17 @@ int main(int argc, char **argv) {
                                  global_work_size, local_work_size, 0, NULL,
                                  NULL);
         }
-        
+
         // Wait for kernel to complete
         clFinish(queue);
-        
+
         // Swap the OpenCL buffers for next iteration
         cl_mem temp = opencl_d_cells;
         opencl_d_cells = opencl_d_next_cells;
         opencl_d_next_cells = temp;
-        
-        // Read the current state for display (from the buffer that now contains results)
+
+        // Read the current state for display (from the buffer that now contains
+        // results)
         clEnqueueReadBuffer(queue, opencl_d_cells, CL_TRUE, 0,
                             GRID_X * GRID_Y * sizeof(char), cells.data(), 0,
                             NULL, NULL);
@@ -716,8 +785,6 @@ int main(int argc, char **argv) {
         d_next_cells = temp;
       } else if (method == OPENCL) {
 
-        // No need to write data every frame - data is already on device
-        // Just run the kernel with current buffers
         if (double_dim) {
           clSetKernelArg(grid_2d_kernel, 0, sizeof(cl_mem), &opencl_d_cells);
           clSetKernelArg(grid_2d_kernel, 1, sizeof(cl_mem),
@@ -739,13 +806,11 @@ int main(int argc, char **argv) {
                                  global_work_size, local_work_size, 0, NULL,
                                  NULL);
         }
-        
-        // Wait for kernel to complete
+
         clFinish(queue);
 
         app_end = std::chrono::high_resolution_clock::now();
-        
-        // Swap the OpenCL buffers for next iteration
+
         cl_mem temp = opencl_d_cells;
         opencl_d_cells = opencl_d_next_cells;
         opencl_d_next_cells = temp;
