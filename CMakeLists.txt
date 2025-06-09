@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(GameOfLife CXX)
-
+cmake_policy(SET CMP0072 NEW)
 # Find OpenGL
 find_package(OpenGL REQUIRED)
 include_directories(${OPENGL_INCLUDE_DIRS})
