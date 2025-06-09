@@ -615,9 +615,13 @@ int main(int argc, char** argv) {
 
                 clFinish(queue);
                 
-                char* temp = d_cells;
-                d_cells = d_next_cells;
-                d_next_cells = temp;
+                // Copy the result from device buffer back to host for drawing
+                clEnqueueReadBuffer(queue, opencl_d_next_cells, CL_TRUE, 0, GRID_X * GRID_Y * sizeof(char), cells.data(), 0, NULL, NULL);
+                
+                // Swap the OpenCL buffers for next iteration
+                cl_mem temp = opencl_d_cells;
+                opencl_d_cells = opencl_d_next_cells;
+                opencl_d_next_cells = temp;
             }
         
             draw_grid(GRID_X, GRID_Y);
@@ -697,9 +701,13 @@ int main(int argc, char** argv) {
 
                 app_end = std::chrono::high_resolution_clock::now();
 
-                char* temp = d_cells;
-                d_cells = d_next_cells;
-                d_next_cells = temp;
+                // Copy the result from device buffer back to host
+                clEnqueueReadBuffer(queue, opencl_d_next_cells, CL_TRUE, 0, GRID_X * GRID_Y * sizeof(char), cells.data(), 0, NULL, NULL);
+                
+                // Swap the OpenCL buffers for next iteration
+                cl_mem temp = opencl_d_cells;
+                opencl_d_cells = opencl_d_next_cells;
+                opencl_d_next_cells = temp;
             }
         
             cells_proccesed+=GRID_X*GRID_Y; 
