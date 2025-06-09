@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(GameOfLife CXX)
+project(GameOfLife CXX CUDA)
 cmake_policy(SET CMP0072 NEW)
 # Find OpenGL
 find_package(OpenGL REQUIRED)
@@ -36,7 +36,7 @@ include_directories(${GLFW_INCLUDE_DIRS})
 #     set(GLAD_GL "${GLFW_SOURCE_DIR}/deps/glad/gl.h")
 # endif()
 
-set(CMAKE_CUDA_ARCHITECTURES 86)
+set(CMAKE_CUDA_ARCHITECTURES 75)
 enable_language(CUDA)
 
 include_directories(${CUDA_INCLUDE_DIRS})
