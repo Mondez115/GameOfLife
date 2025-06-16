@@ -59,6 +59,8 @@ size_t global_work_size_2d[2];
 size_t local_work_size_2d[2];
 
 cudaError_t err_cuda;
+cudaEvent_t ev_start, ev_stop;
+
 
 cl_int err_cl;
 cl_platform_id platform;
@@ -100,8 +102,13 @@ void print_config() {
                     NULL);
     cout << "Device: " << device_name << endl;
     if (double_dim) {
-      cout << "Global work size: (" << global_work_size_2d[0] << ", " << global_work_size_2d[1] << ")" << endl;
-      cout << "Local work size: (" << local_work_size_2d[0] << ", " << local_work_size_2d[1] << ")" << endl;
+      cout << "Global work size: " << global_work_size_2d[0] << " x "
+           << global_work_size_2d[1] << endl;
+      cout << "Local work size: " << local_work_size_2d[0] << " x "
+           << local_work_size_2d[1] << endl;
+      cout << "Total work items: "
+           << (global_work_size_2d[0] * global_work_size_2d[1]) << endl;
+      cout << "Required work items: " << (GRID_X * GRID_Y) << endl;
     } else {
       cout << "Global work size: " << global_work_size << endl;
       cout << "Local work size: " << local_work_size << endl;
@@ -185,7 +192,7 @@ void draw_grid(int rows, int cols) {
       float y = -j + rows / 2;
 
       if (cells[i + j * cols] == 1) {
-        glColor3f(1.0f, 0.0f, 0.0f);
+        glColor3f(0.0f, 1.0f, 0.0f);
       } else {
         glColor3f(0.0f, 0.0f, 0.0f);
       }
@@ -263,7 +270,7 @@ GLFWwindow *init_glfw(int width, int height) {
   return window;
 }
 
-__global__ void game_of_life_kernel(char *d_cells, char *d_next_cells,
+__global__ void game_of_life_kernel(const char* __restrict__ d_cells, char *d_next_cells,
                                     int grid_x, int grid_y) {
 
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -314,7 +321,7 @@ __global__ void game_of_life_kernel_2d(char *d_cells, char *d_next_cells,
         int nx = (x + dx + grid_x) % grid_x;
         int ny = (y + dy + grid_y) % grid_y;
 
-        neighbors += d_cells[nx + ny * grid_x];
+        neighbors += __ldg(d_cells + nx + ny * grid_x);
       }
     }
 
@@ -492,19 +499,18 @@ int main(int argc, char **argv) {
   dim3 grid_size_2d((GRID_X + block_size_2d.x - 1) / block_size_2d.x,
                     (GRID_Y + block_size_2d.y - 1) / block_size_2d.y);
 
-const size_t local_work_size_2d_temp[2] = {
-    (size_t)block_size,   // x dimension of a work-group
-    (size_t)block_size    // y dimension of a work-group
-};
+  const size_t local_work_size_2d[2] = {
+      (size_t)block_size, // x dimension of a work-group
+      (size_t)block_size  // y dimension of a work-group
+  };
 
-size_t num_groups_x = (GRID_X + block_size - 1) / block_size;
-size_t num_groups_y = (GRID_Y + block_size - 1) / block_size;
+  size_t num_groups_x = (GRID_X + block_size - 1) / block_size;
+  size_t num_groups_y = (GRID_Y + block_size - 1) / block_size;
 
-const size_t global_work_size_2d_temp[2] = {
-    num_groups_x * local_work_size_2d_temp[0],  // covers all GRID_X columns
-    num_groups_y * local_work_size_2d_temp[1]   // covers all GRID_Y rows
-};
-
+  const size_t global_work_size_2d[2] = {
+      num_groups_x * local_work_size_2d[0], // covers all GRID_X columns
+      num_groups_y * local_work_size_2d[1]  // covers all GRID_Y rows
+  };
 
   const size_t local_work_size[1] = {block_size};
 
@@ -544,7 +550,7 @@ const size_t global_work_size_2d_temp[2] = {
         (cl_platform_id *)malloc(sizeof(cl_platform_id) * numPlatforms);
     clGetPlatformIDs(numPlatforms, platforms, NULL);
 
-    platform = platforms[1]; // choose the first platform
+    platform = platforms[0]; // choose the first platform
     free(platforms);
 
     cl_uint numDevices = 0;
@@ -555,6 +561,78 @@ const size_t global_work_size_2d_temp[2] = {
 
     device = devices[0]; // choose the first device
     free(devices);
+
+    // Query device capabilities to avoid CL_INVALID_WORK_GROUP_SIZE
+    size_t max_work_group_size;
+    clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t),
+                    &max_work_group_size, NULL);
+
+    std::cout << "OpenCL Device max work group size: " << max_work_group_size
+              << std::endl;
+
+    size_t max_work_item_dimensions;
+    clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(size_t),
+                    &max_work_item_dimensions, NULL);
+
+    std::cout << "OpenCL Device max work item dimensions: "
+              << max_work_item_dimensions << std::endl;
+
+    size_t max_work_item_sizes[3];
+    clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES,
+                    sizeof(max_work_item_sizes), max_work_item_sizes, NULL);
+
+    std::cout << "OpenCL Device max work group size: " << max_work_group_size
+              << std::endl;
+    std::cout << "OpenCL Device max work item sizes: ["
+              << max_work_item_sizes[0] << ", " << max_work_item_sizes[1]
+              << ", " << max_work_item_sizes[2] << "]" << std::endl;
+
+    // Adjust work sizes based on device capabilities
+    size_t adjusted_block_size = block_size;
+
+    // For 1D: ensure local work size doesn't exceed max work group size
+    if (adjusted_block_size > max_work_group_size) {
+      adjusted_block_size = max_work_group_size;
+      std::cout << "Warning: Adjusted 1D block size from " << block_size
+                << " to " << adjusted_block_size << std::endl;
+    }
+
+    // For 2D: ensure each dimension and total don't exceed limits
+    size_t adjusted_block_size_2d = block_size;
+    if (adjusted_block_size_2d > max_work_item_sizes[0] ||
+        adjusted_block_size_2d > max_work_item_sizes[1]) {
+      adjusted_block_size_2d =
+          std::min(max_work_item_sizes[0], max_work_item_sizes[1]);
+      std::cout << "Warning: Adjusted 2D block size per dimension from "
+                << block_size << " to " << adjusted_block_size_2d << std::endl;
+    }
+
+    // Check total work items in 2D work group
+    if (adjusted_block_size_2d * adjusted_block_size_2d > max_work_group_size) {
+      adjusted_block_size_2d = 16;
+      std::cout << "Warning: Adjusted 2D block size for total work group from "
+                << block_size << " to " << adjusted_block_size_2d << std::endl;
+    }
+
+    // Recalculate work sizes with adjusted values
+    const size_t adjusted_local_work_size[1] = {adjusted_block_size};
+    const size_t adjusted_local_work_size_2d[2] = {adjusted_block_size_2d,
+                                                   adjusted_block_size_2d};
+
+    const size_t adjusted_total_cells = GRID_X * GRID_Y;
+    const size_t adjusted_global_work_size[1] = {
+        ((adjusted_total_cells + adjusted_block_size - 1) /
+         adjusted_block_size) *
+        adjusted_block_size};
+
+    size_t adjusted_num_groups_x =
+        (GRID_X + adjusted_block_size_2d - 1) / adjusted_block_size_2d;
+    size_t adjusted_num_groups_y =
+        (GRID_Y + adjusted_block_size_2d - 1) / adjusted_block_size_2d;
+
+    const size_t adjusted_global_work_size_2d[2] = {
+        adjusted_num_groups_x * adjusted_local_work_size_2d[0],
+        adjusted_num_groups_y * adjusted_local_work_size_2d[1]};
 
     context = clCreateContext(NULL, 1, &device, NULL, NULL, &err_cl);
 
@@ -604,14 +682,12 @@ const size_t global_work_size_2d_temp[2] = {
     grid_2d_kernel = clCreateKernel(grid_2d_program,
                                     "game_of_life_kernel_2d_opencl", &err_cl);
 
-
-    ::global_work_size = global_work_size[0];
-    ::local_work_size = local_work_size[0];
-    // Copy the local 2D arrays to global arrays
-    ::global_work_size_2d[0] = global_work_size_2d_temp[0];
-    ::global_work_size_2d[1] = global_work_size_2d_temp[1];
-    ::local_work_size_2d[0] = local_work_size_2d_temp[0];
-    ::local_work_size_2d[1] = local_work_size_2d_temp[1];
+    ::global_work_size = adjusted_global_work_size[0];
+    ::local_work_size = adjusted_local_work_size[0];
+    ::global_work_size_2d[0] = adjusted_global_work_size_2d[0];
+    ::global_work_size_2d[1] = adjusted_global_work_size_2d[1];
+    ::local_work_size_2d[0] = adjusted_local_work_size_2d[0];
+    ::local_work_size_2d[1] = adjusted_local_work_size_2d[1];
   }
 
   print_config();
@@ -646,27 +722,30 @@ const size_t global_work_size_2d_temp[2] = {
         game_of_life_cpu();
 
       } else if (method == CUDA) {
-
+        cudaEventCreate(&ev_start);
+        cudaEventCreate(&ev_stop);
+        cudaEventRecord(ev_start, 0);
         if (double_dim) {
-          game_of_life_kernel_2d<<<grid_size_2d, block_size_2d>>>(
+          game_of_life_kernel_2d<<<grid_size_2d, block_size_2d, 0, 0>>>(
               d_cells, d_next_cells, GRID_X, GRID_Y);
         } else {
-          game_of_life_kernel<<<grid_size, block_size>>>(d_cells, d_next_cells,
-                                                         GRID_X, GRID_Y);
+          game_of_life_kernel<<<grid_size, block_size, 0, 0>>>(
+              d_cells, d_next_cells, GRID_X, GRID_Y);
         }
-
-        cudaDeviceSynchronize();
-
+        
         err_cuda = cudaGetLastError();
         if (err_cuda != cudaSuccess) {
           std::cerr << "CUDA kernel launch failed: "
-                    << cudaGetErrorString(err_cuda) << std::endl;
+          << cudaGetErrorString(err_cuda) << std::endl;
           return -1;
         }
-
+        
         cudaMemcpy(cells.data(), d_next_cells, GRID_X * GRID_Y * sizeof(char),
-                   cudaMemcpyDeviceToHost);
+        cudaMemcpyDeviceToHost);
 
+        cudaEventRecord(ev_stop, 0);
+        cudaEventSynchronize(ev_stop);
+        
         char *temp = d_cells;
         d_cells = d_next_cells;
         d_next_cells = temp;
@@ -681,9 +760,14 @@ const size_t global_work_size_2d_temp[2] = {
           clSetKernelArg(grid_2d_kernel, 2, sizeof(int), &GRID_X);
           clSetKernelArg(grid_2d_kernel, 3, sizeof(int), &GRID_Y);
 
-          clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL,
-                                 global_work_size_2d, local_work_size_2d, 0,
-                                 NULL, NULL);
+          err_cl = clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL,
+                                          global_work_size_2d,
+                                          local_work_size_2d, 0, NULL, NULL);
+          if (err_cl != CL_SUCCESS) {
+            std::cerr << "OpenCL 2D kernel launch failed, error: " << err_cl
+                      << std::endl;
+            return -1;
+          }
         } else {
           clSetKernelArg(grid_1d_kernel, 0, sizeof(cl_mem), &opencl_d_cells);
           clSetKernelArg(grid_1d_kernel, 1, sizeof(cl_mem),
@@ -691,9 +775,14 @@ const size_t global_work_size_2d_temp[2] = {
           clSetKernelArg(grid_1d_kernel, 2, sizeof(int), &GRID_X);
           clSetKernelArg(grid_1d_kernel, 3, sizeof(int), &GRID_Y);
 
-          clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL,
-                                 global_work_size, local_work_size, 0, NULL,
-                                 NULL);
+          err_cl = clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL,
+                                          global_work_size, local_work_size, 0,
+                                          NULL, NULL);
+          if (err_cl != CL_SUCCESS) {
+            std::cerr << "OpenCL 1D kernel launch failed, error: " << err_cl
+                      << std::endl;
+            return -1;
+          }
         }
 
         // Wait for kernel to complete
@@ -709,6 +798,8 @@ const size_t global_work_size_2d_temp[2] = {
         clEnqueueReadBuffer(queue, opencl_d_cells, CL_TRUE, 0,
                             GRID_X * GRID_Y * sizeof(char), cells.data(), 0,
                             NULL, NULL);
+
+        clFinish(queue);
       }
 
       draw_grid(GRID_X, GRID_Y);
@@ -758,26 +849,32 @@ const size_t global_work_size_2d_temp[2] = {
         app_end = std::chrono::high_resolution_clock::now();
 
       } else if (method == CUDA) {
-
+        cudaEventCreate(&ev_start);
+        cudaEventCreate(&ev_stop);
+        cudaEventRecord(ev_start, 0);
         if (double_dim) {
-          game_of_life_kernel_2d<<<grid_size_2d, block_size_2d>>>(
+          game_of_life_kernel_2d<<<grid_size_2d, block_size_2d, 0, 0>>>(
               d_cells, d_next_cells, GRID_X, GRID_Y);
         } else {
-          game_of_life_kernel<<<grid_size, block_size>>>(d_cells, d_next_cells,
-                                                         GRID_X, GRID_Y);
+          game_of_life_kernel<<<grid_size, block_size, 0, 0>>>(
+              d_cells, d_next_cells, GRID_X, GRID_Y);
         }
 
+        // cudaDeviceSynchronize();
+        
+        cudaMemcpy(cells.data(), d_next_cells, GRID_X * GRID_Y * sizeof(char),
+        cudaMemcpyDeviceToHost);
+
+        cudaEventRecord(ev_stop, 0);
+        cudaEventSynchronize(ev_stop);
+        
         err_cuda = cudaGetLastError();
         if (err_cuda != cudaSuccess) {
           std::cerr << "CUDA kernel launch failed: "
-                    << cudaGetErrorString(err_cuda) << std::endl;
+          << cudaGetErrorString(err_cuda) << std::endl;
           return -1;
         }
-
-        cudaDeviceSynchronize();
-
-        cudaMemcpy(cells.data(), d_next_cells, GRID_X * GRID_Y * sizeof(char),
-                   cudaMemcpyDeviceToHost);
+        
         app_end = std::chrono::high_resolution_clock::now();
 
         char *temp = d_cells;
@@ -792,9 +889,14 @@ const size_t global_work_size_2d_temp[2] = {
           clSetKernelArg(grid_2d_kernel, 2, sizeof(int), &GRID_X);
           clSetKernelArg(grid_2d_kernel, 3, sizeof(int), &GRID_Y);
 
-          clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL,
-                                 global_work_size_2d, local_work_size_2d, 0,
-                                 NULL, NULL);
+          err_cl = clEnqueueNDRangeKernel(queue, grid_2d_kernel, 2, NULL,
+                                          global_work_size_2d,
+                                          local_work_size_2d, 0, NULL, NULL);
+          if (err_cl != CL_SUCCESS) {
+            std::cerr << "OpenCL 2D kernel launch failed, error: " << err_cl
+                      << std::endl;
+            return -1;
+          }
         } else {
           clSetKernelArg(grid_1d_kernel, 0, sizeof(cl_mem), &opencl_d_cells);
           clSetKernelArg(grid_1d_kernel, 1, sizeof(cl_mem),
@@ -802,18 +904,31 @@ const size_t global_work_size_2d_temp[2] = {
           clSetKernelArg(grid_1d_kernel, 2, sizeof(int), &GRID_X);
           clSetKernelArg(grid_1d_kernel, 3, sizeof(int), &GRID_Y);
 
-          clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL,
-                                 global_work_size, local_work_size, 0, NULL,
-                                 NULL);
+          err_cl = clEnqueueNDRangeKernel(queue, grid_1d_kernel, 1, NULL,
+                                          global_work_size, local_work_size, 0,
+                                          NULL, NULL);
+          if (err_cl != CL_SUCCESS) {
+            std::cerr << "OpenCL 1D kernel launch failed, error: " << err_cl
+                      << std::endl;
+            return -1;
+          }
         }
 
         clFinish(queue);
-
-        app_end = std::chrono::high_resolution_clock::now();
-
+        
+        // Read the current state for display (from the buffer that now contains
+        // results)
+        clEnqueueReadBuffer(queue, opencl_d_cells, CL_TRUE, 0,
+          GRID_X * GRID_Y * sizeof(char), cells.data(), 0,
+          NULL, NULL);
+        clFinish(queue);
+        
+        // Swap the OpenCL buffers for next iteration
         cl_mem temp = opencl_d_cells;
         opencl_d_cells = opencl_d_next_cells;
         opencl_d_next_cells = temp;
+        
+        app_end = std::chrono::high_resolution_clock::now();
       }
 
       cells_proccesed += GRID_X * GRID_Y;
@@ -837,6 +952,8 @@ const size_t global_work_size_2d_temp[2] = {
   if (method == CUDA) {
     cudaFree(d_cells);
     cudaFree(d_next_cells);
+    cudaEventDestroy(ev_start);
+    cudaEventDestroy(ev_stop);
 
     std::cout << "Freed CUDA resources" << std::endl;
   } else if (method == OPENCL) {
