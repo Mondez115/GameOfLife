@@ -550,7 +550,7 @@ int main(int argc, char **argv) {
         (cl_platform_id *)malloc(sizeof(cl_platform_id) * numPlatforms);
     clGetPlatformIDs(numPlatforms, platforms, NULL);
 
-    platform = platforms[0]; // choose the first platform
+    platform = platforms[1]; // choose the first platform
     free(platforms);
 
     cl_uint numDevices = 0;
@@ -954,6 +954,7 @@ int main(int argc, char **argv) {
     cudaFree(d_next_cells);
     cudaEventDestroy(ev_start);
     cudaEventDestroy(ev_stop);
+    cudaDeviceReset();
 
     std::cout << "Freed CUDA resources" << std::endl;
   } else if (method == OPENCL) {
