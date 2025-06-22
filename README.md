@@ -46,7 +46,7 @@ Una vez compilado el proyecto se debe ejecutar de la siguiente manera:
 
 Argumentos: 
 
--`draw`: Un entero, indica si desea tener o una interfaz gráfica para ver el proceso del juego, cualquier valor distinto a 0 activará la interfaz.
+- `draw`: Un entero, indica si desea tener o una interfaz gráfica para ver el proceso del juego, cualquier valor distinto a 0 activará la interfaz.
 - `columns`: Un entero, la cantidad de columnas de la grilla, en otras palabras el valor máximo de la coordenada `X`, cualquier valor menor a 1 generará un error.
 - `rows`: Un entero, la cantidad de filas de la grilla, en otras palabras el valor máximo de la coordenada `Y`, cualquier valor menor a 1 generará un error.
 - `hardware/API`: Un string, indica que se utilizará para calcular las generaciones de células, valores aceptados: `CUDA`, `OPENCL` o `CPU`.
