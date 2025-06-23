@@ -79,7 +79,10 @@ for accelerator in accelerators:
 plt.xlabel("Block Size")
 plt.ylabel("Cells Per Second")
 plt.title("EXP3: Performance vs Block Size")
+<<<<<<< HEAD
 plt.xticks([30, 32, 60, 64, 90, 96, 120, 128, 150, 160, 190, 192])
+=======
+>>>>>>> origin/main
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.ticklabel_format(style='scientific', axis='y', scilimits=(0,0))
