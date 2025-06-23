@@ -14,6 +14,24 @@ print(f"Experiments found: {experiments}")
 print(f"Accelerators found: {accelerators}")
 
 plt.figure(figsize=(10, 6))
+exp0_results = results[results["experiment"] == "EXP0"]
+for accelerator in accelerators:
+    acc_results = exp0_results[exp0_results["accelerator"] == accelerator]
+    if not acc_results.empty:
+        acc_results = acc_results.sort_values('grid_size')
+        plt.plot(acc_results["grid_size"], acc_results["cells_per_sec"], 
+                marker='o', label=f"{accelerator}")
+
+plt.xlabel("Grid Size (Total Cells) - Log Scale")
+plt.ylabel("Cells Per Second")
+plt.title("EXP0: Performance vs Small Grid Size (Log Scale)")
+plt.xscale('log')
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.ticklabel_format(style='scientific', axis='y', scilimits=(0,0))
+plt.show()
+
+plt.figure(figsize=(10, 6))
 exp1_results = results[results["experiment"] == "EXP1"]
 for accelerator in accelerators:
     acc_results = exp1_results[exp1_results["accelerator"] == accelerator]
@@ -61,6 +79,10 @@ for accelerator in accelerators:
 plt.xlabel("Block Size")
 plt.ylabel("Cells Per Second")
 plt.title("EXP3: Performance vs Block Size")
+<<<<<<< HEAD
+plt.xticks([30, 32, 60, 64, 90, 96, 120, 128, 150, 160, 190, 192])
+=======
+>>>>>>> origin/main
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.ticklabel_format(style='scientific', axis='y', scilimits=(0,0))
